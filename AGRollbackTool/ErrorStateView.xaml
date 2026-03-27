@@ -1,0 +1,89 @@
+<UserControl x:Class="AGRollbackTool.ErrorStateView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.expression.com/blend/2008"
+             xmlns:local="clr-namespace:AGRollbackTool"
+             mc:Ignorable="d"
+             d:DesignHeight="450" d:DesignWidth="800">
+    <Border Background="White" BorderBrush="#FFCCCCCC" BorderThickness="2" CornerRadius="8" Padding="20">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Error Icon and Message -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                <TextBlock Text="⚠" FontSize="36" Foreground="#FFD32F2F" Margin="0,0,10,0"/>
+                <StackPanel>
+                    <TextBlock x:Name="ErrorMessageTextBlock"
+                               Text="An error occurred"
+                               FontSize="18"
+                               FontWeight="Bold"
+                               TextWrapping="Wrap"/>
+                    <TextBlock x:Name="ErrorDetailTextBlock"
+                               Text="Please see details below."
+                               FontSize="14"
+                               Foreground="#FF666666"
+                               Margin="0,4,0,0"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Technical Details Expander -->
+            <Expander x:Name="TechnicalDetailsExpander"
+                      Header="Show technical details"
+                      FontSize="14"
+                      IsExpanded="False"
+                      Grid.Row="1"
+                      Margin="0,0,0,20">
+                <Border Background="#FFF8F8F8" BorderBrush="#FFE0E0E0" BorderThickness="1" CornerRadius="4" Padding="10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Exception Message:" FontWeight="Bold" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="ExceptionMessageTextBlock"
+                                   Text="No exception message"
+                                   TextWrapping="Wrap"
+                                   FontFamily="Consolas"
+                                   FontSize="12"
+                                   Margin="0,0,0,8"
+                                   Grid.Row="0"/>
+                        <TextBlock Text="Stack Trace:" FontWeight="Bold" Margin="0,0,0,4" Grid.Row="1"/>
+                        <TextBox x:Name="StackTraceTextBox"
+                                 Text="No stack trace"
+                                 FontFamily="Consolas"
+                                 FontSize="12"
+                                 TextWrapping="Wrap"
+                                 IsReadOnly="True"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 MinHeight="100"
+                                 Grid.Row="2"/>
+                    </Grid>
+                </Border>
+            </Expander>
+
+            <!-- Buttons -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Grid.Row="2">
+                <Button x:Name="CancelButton"
+                        Content="Cancel"
+                        Width="100"
+                        Height="32"
+                        Margin="0,0,10,0"
+                        Click="CancelButton_Click"/>
+                <Button x:Name="RetryButton"
+                        Content="Retry"
+                        Width="100"
+                        Height="32"
+                        Background="#FF1976D2"
+                        Foreground="White"
+                        Click="RetryButton_Click"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

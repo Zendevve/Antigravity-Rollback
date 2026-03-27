@@ -1,0 +1,103 @@
+<UserControl x:Class="AGRollbackTool.SettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:AGRollbackTool"
+             mc:Ignorable="d"
+             d:DesignHeight="450" d:DesignWidth="800">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Settings" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" Margin="10"/>
+
+        <ScrollViewer Grid.Row="1" Margin="10">
+            <StackPanel>
+                <!-- Custom Backup Directory -->
+                <Border BorderBrush="#CCCCCC" BorderThickness="1" Margin="0,0,0,10" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Custom Backup Directory" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="BackupDirectoryTextBox" Width="400" Height="25" Margin="0,0,10,0"/>
+                            <Button x:Name="BrowseBackupDirectoryButton" Content="Browse..." Width="80" Height="25" Click="BrowseBackupDirectoryButton_Click"/>
+                        </StackPanel>
+                        <TextBlock x:Name="BackupDirectoryHelpText" TextWrapping="Wrap" FontSize="10" Foreground="#666666" Margin="0,5,0,0">
+                            Specify a custom directory for storing backups. If left empty, the default location will be used.
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Keep Firewall Rules Permanently Toggle -->
+                <Border BorderBrush="#CCCCCC" BorderThickness="1" Margin="0,0,0,10" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Firewall Rules" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <CheckBox x:Name="KeepFirewallCheckBox" Content="Keep firewall rules permanently" Margin="0,5,0,0"/>
+                        <TextBlock x:Name="FirewallToggleHelpText" TextWrapping="Wrap" FontSize="10" Foreground="#666666" Margin="0,5,0,0">
+                            When enabled, firewall rules that block Antigravity updates will be kept permanently after restore. When disabled, rules will be removed after restore.
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Installer Cache Directory Configuration -->
+                <Border BorderBrush="#CCCCCC" BorderThickness="1" Margin="0,0,0,10" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Installer Cache Directory" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox x:Name="InstallerCacheDirectoryTextBox" Width="400" Height="25" Margin="0,0,10,0"/>
+                            <Button x:Name="BrowseInstallerCacheDirectoryButton" Content="Browse..." Width="80" Height="25" Click="BrowseInstallerCacheDirectoryButton_Click"/>
+                        </StackPanel>
+                        <TextBlock x:Name="InstallerCacheDirectoryHelpText" TextWrapping="Wrap" FontSize="10" Foreground="#666666" Margin="0,5,0,0">
+                            Specify a directory for caching installer files. This can help speed up repeated operations by avoiding re-downloads.
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                 <!-- Animation Settings -->
+                 <Border BorderBrush="#CCCCCC" BorderThickness="1" Margin="0,0,0,10" Padding="10">
+                     <StackPanel>
+                         <TextBlock Text="Animation Settings" FontWeight="Bold" Margin="0,0,0,5"/>
+                         <CheckBox x:Name="EnableAnimationsCheckBox" Content="Enable UI animations" IsChecked="True" Margin="0,5,0,0"/>
+                         <TextBlock x:Name="AnimationsHelpText" TextWrapping="Wrap" FontSize="10" Foreground="#666666" Margin="0,5,0,0">
+                             Disable animations for better performance or accessibility needs.
+                         </TextBlock>
+                     </StackPanel>
+                 </Border>
+
+                  <!-- Theme Settings -->
+                  <Border BorderBrush="#CCCCCC" BorderThickness="1" Margin="0,0,0,10" Padding="10">
+                      <StackPanel>
+                          <TextBlock Text="Theme Settings" FontWeight="Bold" Margin="0,0,0,5"/>
+                          <StackPanel Orientation="Horizontal">
+                              <TextBlock Text="Dark Theme:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                              <ToggleButton x:Name="ThemeToggleButton" Width="60" Height="30" Margin="0,5,0,0" Click="ThemeToggleButton_Click">
+                                  <ToggleButton.Template>
+                                      <ControlTemplate TargetType="ToggleButton">
+                                          <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="15">
+                                              <Ellipse x:Name="ellipse" Width="20" Height="20" Fill="White" Margin="5"/>
+                                          </Border>
+                                          <ControlTemplate.Triggers>
+                                              <Trigger Property="IsChecked" Value="True">
+                                                  <Setter TargetName="ellipse" Property="Margin" Value="35,5,5,5"/>
+                                              </Trigger>
+                                          </ControlTemplate.Triggers>
+                                      </ControlTemplate>
+                                  </ToggleButton.Template>
+                              </ToggleButton>
+                          </StackPanel>
+                          <TextBlock x:Name="ThemeHelpText" TextWrapping="Wrap" FontSize="10" Foreground="#666666" Margin="0,5,0,0">
+                              Switch between light and dark themes. Requires application restart to fully apply.
+                          </TextBlock>
+                      </StackPanel>
+                  </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="10" VerticalAlignment="Bottom">
+            <Button x:Name="SaveSettingsButton" Content="Save" Width="80" Height="30" Margin="0,0,10,0" Click="SaveSettingsButton_Click"/>
+            <Button x:Name="CancelSettingsButton" Content="Cancel" Width="80" Height="30" Click="CancelSettingsButton_Click"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

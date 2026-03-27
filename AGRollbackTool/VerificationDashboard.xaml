@@ -1,0 +1,83 @@
+<UserControl x:Class="AGRollbackTool.VerificationDashboard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:AGRollbackTool"
+             mc:Ignorable="d"
+             d:DesignHeight="450" d:DesignWidth="800">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Verification Dashboard" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" Margin="10"/>
+
+        <ScrollViewer Grid.Row="1" Margin="10">
+            <StackPanel>
+                <!-- Version Confirmation -->
+                <Border BorderBrush="#CCCCCC" BorderThickness="1" Margin="0,0,0,10" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Version Confirmation" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="VersionText" Text="Checking..."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Chat History Count -->
+                <Border BorderBrush="#CCCCCC" BorderThickness="1" Margin="0,0,0,10" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Chat History Count" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="ChatHistoryCountText" Text="Checking..."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- GEMINI.md Presence and Size -->
+                <Border BorderBrush="#CCCCCC" BorderThickness="1" Margin="0,0,0,10" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="GEMINI.md File" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="GeminiMdText" Text="Checking..."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- settings.json Restoration -->
+                <Border BorderBrush="#CCCCCC" BorderThickness="1" Margin="0,0,0,10" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="settings.json Restoration" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="SettingsJsonText" Text="Checking..."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Keybindings Restoration -->
+                <Border BorderBrush="#CCCCCC" BorderThickness="1" Margin="0,0,0,10" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Keybindings Restoration" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="KeybindingsText" Text="Checking..."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- state.vscdb Restoration -->
+                <Border BorderBrush="#CCCCCC" BorderThickness="1" Margin="0,0,0,10" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="state.vscdb Restoration" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="StateVscdbText" Text="Checking..."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Firewall Rules Status -->
+                <Border BorderBrush="#CCCCCC" BorderThickness="1" Margin="0,0,0,10" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Firewall Rules Status" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="FirewallStatusText" Text="Checking..."/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
+            <Button x:Name="RemoveFirewallButton" Content="Remove Firewall Block" Width="150" Height="30" Margin="0,0,10,0" Click="RemoveFirewallButton_Click"/>
+            <Button x:Name="KeepFirewallButton" Content="Keep Firewall Permanently" Width="150" Height="30" Click="KeepFirewallButton_Click"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

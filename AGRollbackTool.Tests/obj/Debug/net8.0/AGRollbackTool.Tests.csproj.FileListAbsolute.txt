@@ -1,0 +1,5 @@
+d:\COMPROG\antigravity rollback\AGRollbackTool.Tests\obj\Debug\net8.0\AGRollbackTool.Tests.csproj.AssemblyReference.cache
+d:\COMPROG\antigravity rollback\AGRollbackTool.Tests\obj\Debug\net8.0\AGRollbackTool.Tests.GeneratedMSBuildEditorConfig.editorconfig
+d:\COMPROG\antigravity rollback\AGRollbackTool.Tests\obj\Debug\net8.0\AGRollbackTool.Tests.AssemblyInfoInputs.cache
+d:\COMPROG\antigravity rollback\AGRollbackTool.Tests\obj\Debug\net8.0\AGRollbackTool.Tests.AssemblyInfo.cs
+d:\COMPROG\antigravity rollback\AGRollbackTool.Tests\obj\Debug\net8.0\AGRollbackTool.Tests.csproj.CoreCompileInputs.cache
