@@ -14,9 +14,12 @@
     <SourceRoot Include="c:\program files\dotnet\sdk\NuGetFallbackFolder\" />
   </ItemGroup>
   <ImportGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Import Project="$(NuGetPackageRoot)xunit.runner.visualstudio\2.5.4\build\net6.0\xunit.runner.visualstudio.props" Condition="Exists('$(NuGetPackageRoot)xunit.runner.visualstudio\2.5.4\build\net6.0\xunit.runner.visualstudio.props')" />
+    <Import Project="$(NuGetPackageRoot)xunit.core\2.6.2\build\xunit.core.props" Condition="Exists('$(NuGetPackageRoot)xunit.core\2.6.2\build\xunit.core.props')" />
     <Import Project="$(NuGetPackageRoot)microsoft.net.illink.tasks\8.0.23\build\Microsoft.NET.ILLink.Tasks.props" Condition="Exists('$(NuGetPackageRoot)microsoft.net.illink.tasks\8.0.23\build\Microsoft.NET.ILLink.Tasks.props')" />
   </ImportGroup>
   <PropertyGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Pkgxunit_analyzers Condition=" '$(Pkgxunit_analyzers)' == '' ">C:\Users\natha\.nuget\packages\xunit.analyzers\1.6.0</Pkgxunit_analyzers>
     <PkgMicrosoft_NET_ILLink_Tasks Condition=" '$(PkgMicrosoft_NET_ILLink_Tasks)' == '' ">C:\Users\natha\.nuget\packages\microsoft.net.illink.tasks\8.0.23</PkgMicrosoft_NET_ILLink_Tasks>
   </PropertyGroup>
 </Project>

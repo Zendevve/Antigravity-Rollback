@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
 using AGRollbackTool.Services;
+using Serilog;
 
 namespace AGRollbackTool.Services
 {
@@ -38,9 +39,13 @@ namespace AGRollbackTool.Services
         /// <inheritdoc/>
         public async Task<string> BackupAsync(bool compress = false)
         {
+            Log.Information("Starting backup operation. Compress: {Compress}", compress);
+
             // Create timestamped backup folder
             string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             string backupDir = Path.Combine(_backupRootPath, timestamp);
+            Log.Debug("Created backup directory: {BackupDir}", backupDir);
+
             Directory.CreateDirectory(backupDir);
 
             // Define source paths to backup
@@ -71,20 +76,25 @@ namespace AGRollbackTool.Services
 
             try
             {
+                Log.Debug("Processing {Count} source paths for backup", sourcePaths.Count);
+
                 foreach (var source in sourcePaths)
                 {
                     if (!source.Exists)
                     {
                         // Skip missing paths but continue with others
+                        Log.Debug("Source path does not exist, skipping: {Path}", source.Path);
                         continue;
                     }
 
                     if (source.IsDirectory)
                     {
+                        Log.Debug("Backing up directory: {Path}", source.Path);
                         await CopyDirectoryRecursiveAsync(source.Path, backupDir, manifest);
                     }
                     else
                     {
+                        Log.Debug("Backing up file: {Path}", source.Path);
                         await CopyFileAsync(source.Path, backupDir, manifest);
                     }
                 }
@@ -92,6 +102,7 @@ namespace AGRollbackTool.Services
                 // Write manifest to backup directory
                 string manifestPath = Path.Combine(backupDir, "manifest.json");
                 await WriteManifestAsync(manifest, manifestPath);
+                Log.Debug("Manifest written to: {ManifestPath}", manifestPath);
 
                 // Add manifest itself to the manifest? (optional)
                 // We'll add it after writing so it's included in the backup if we compress later
@@ -99,16 +110,20 @@ namespace AGRollbackTool.Services
 
                 if (compress)
                 {
+                    Log.Information("Compressing backup to zip file");
                     string zipPath = Path.Combine(_backupRootPath, $"{timestamp}.zip");
                     ZipFile.CreateFromDirectory(backupDir, zipPath);
                     Directory.Delete(backupDir, true); // Delete the backup directory after zipping
+                    Log.Information("Backup compressed successfully. Zip path: {ZipPath}", zipPath);
                     return zipPath;
                 }
 
+                Log.Information("Backup completed successfully. Entries: {Count}", manifest.Entries.Count);
                 return backupDir;
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Backup operation failed");
                 // Clean up backup directory on failure
                 if (Directory.Exists(backupDir))
                 {

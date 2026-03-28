@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Win32;
+using Serilog;
 
 namespace AGRollbackTool.Services
 {
@@ -32,21 +33,27 @@ namespace AGRollbackTool.Services
         /// <returns>A purge result detailing what was purged and any errors.</returns>
         public async Task<PurgeResult> PurgeAsync()
         {
+            Log.Information("Starting purge operation");
+
             var result = new PurgeResult();
 
             try
             {
+                Log.Debug("Step 1: Terminating Antigravity processes");
                 // Step 1: Terminate all Antigravity processes first
                 await TerminateAntigravityProcessesAsync(result);
 
+                Log.Debug("Step 2: Deleting directories");
                 // Step 2: Delete directories in specified order
                 await DeleteStagedUpdatePayloadAsync(result);
                 await DeleteUserDataAsync(result);
                 await DeleteApplicationBinaryAsync(result);
 
+                Log.Debug("Step 3: Deleting registry keys");
                 // Step 3: Delete registry keys
                 await DeleteRegistryKeysAsync(result);
 
+                Log.Debug("Step 4: Removing shortcuts");
                 // Step 4: Remove shortcuts
                 await RemoveStartMenuShortcutsAsync(result);
                 await RemoveDesktopShortcutsAsync(result);
@@ -54,9 +61,13 @@ namespace AGRollbackTool.Services
                 // Set success if no critical errors occurred
                 result.Success = !result.Errors.Any(e => e.Contains("Access denied", StringComparison.OrdinalIgnoreCase) ||
                                                          e.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase));
+
+                Log.Information("Purge operation completed. Success: {Success}, Directories deleted: {DirCount}, Registry keys deleted: {RegCount}, Shortcuts deleted: {Shortcuts}",
+                    result.Success, result.DirectoriesDeleted, result.RegistryKeysDeleted, result.ShortcutsDeleted);
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Unexpected error during purge operation");
                 result.Errors.Add($"Unexpected error during purge: {ex.Message}");
                 result.Success = false;
             }
@@ -68,22 +79,27 @@ namespace AGRollbackTool.Services
         {
             try
             {
+                Log.Debug("Terminating Antigravity processes");
                 var processResults = _processKiller.KillAllAntigravityProcesses();
                 foreach (var processInfo in processResults)
                 {
                     if (processInfo.IsRunning)
                     {
+                        Log.Error("Failed to terminate process: {Name}, Error: {Error}", processInfo.Name, processInfo.ErrorMessage);
                         result.Errors.Add($"Failed to terminate process {processInfo.Name}: {processInfo.ErrorMessage}");
                     }
                     else if (!string.IsNullOrEmpty(processInfo.ErrorMessage))
                     {
+                        Log.Warning("Warning terminating {Name}: {Error}", processInfo.Name, processInfo.ErrorMessage);
                         // Non-critical error (like access denied) but process terminated
                         result.Errors.Add($"Warning terminating {processInfo.Name}: {processInfo.ErrorMessage}");
                     }
                 }
+                Log.Debug("Terminated {Count} processes", processResults.Count);
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Error terminating Antigravity processes");
                 result.Errors.Add($"Error terminating Antigravity processes: {ex.Message}");
             }
         }
@@ -95,17 +111,20 @@ namespace AGRollbackTool.Services
                 var pathInfo = _pathResolver.GetStagedUpdateCachePath();
                 if (pathInfo.Exists)
                 {
+                    Log.Debug("Deleting staged update payload: {Path}", pathInfo.Path);
                     DeleteDirectoryRecursive(pathInfo.Path);
                     result.DirectoriesDeleted++;
                     result.PurgedItems.Add($"Deleted staged update payload: {pathInfo.Path}");
                 }
                 else
                 {
+                    Log.Debug("Staged update payload not found: {Path}", pathInfo.Path);
                     result.PurgedItems.Add($"Staged update payload not found: {pathInfo.Path}");
                 }
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Error deleting staged update payload");
                 result.Errors.Add($"Error deleting staged update payload: {ex.Message}");
             }
         }
@@ -124,22 +143,26 @@ namespace AGRollbackTool.Services
 
                     if (Directory.Exists(appDataAntigravityPath))
                     {
+                        Log.Debug("Deleting user data: {Path}", appDataAntigravityPath);
                         DeleteDirectoryRecursive(appDataAntigravityPath);
                         result.DirectoriesDeleted++;
                         result.PurgedItems.Add($"Deleted user data: {appDataAntigravityPath}");
                     }
                     else
                     {
+                        Log.Debug("User data not found: {Path}", appDataAntigravityPath);
                         result.PurgedItems.Add($"User data not found: {appDataAntigravityPath}");
                     }
                 }
                 else
                 {
+                    Log.Debug("User data path not found: {Path}", pathInfo.Path);
                     result.PurgedItems.Add($"User data path not found: {pathInfo.Path}");
                 }
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Error deleting user data");
                 result.Errors.Add($"Error deleting user data: {ex.Message}");
             }
         }
@@ -151,17 +174,20 @@ namespace AGRollbackTool.Services
                 var pathInfo = _pathResolver.GetApplicationBinaryPath();
                 if (pathInfo.Exists)
                 {
+                    Log.Debug("Deleting application binary: {Path}", pathInfo.Path);
                     DeleteDirectoryRecursive(pathInfo.Path);
                     result.DirectoriesDeleted++;
                     result.PurgedItems.Add($"Deleted application binary: {pathInfo.Path}");
                 }
                 else
                 {
+                    Log.Debug("Application binary not found: {Path}", pathInfo.Path);
                     result.PurgedItems.Add($"Application binary not found: {pathInfo.Path}");
                 }
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Error deleting application binary");
                 result.Errors.Add($"Error deleting application binary: {ex.Message}");
             }
         }
@@ -174,19 +200,23 @@ namespace AGRollbackTool.Services
                 try
                 {
                     Registry.CurrentUser.DeleteSubKeyTree("Software\\antigravity", false);
+                    Log.Debug("Deleted registry key: HKCU\\Software\\antigravity");
                     result.RegistryKeysDeleted++;
                     result.PurgedItems.Add("Deleted registry key: HKCU\\Software\\antigravity");
                 }
                 catch (ArgumentException)
                 {
+                    Log.Debug("Registry key not found: HKCU\\Software\\antigravity");
                     result.PurgedItems.Add("Registry key not found: HKCU\\Software\\antigravity");
                 }
                 catch (UnauthorizedAccessException ex)
                 {
+                    Log.Error(ex, "Access denied deleting registry key HKCU\\Software\\antigravity");
                     result.Errors.Add($"Access denied deleting registry key HKCU\\Software\\antigravity: {ex.Message}");
                 }
                 catch (Exception ex)
                 {
+                    Log.Error(ex, "Error deleting registry key HKCU\\Software\\antigravity");
                     result.Errors.Add($"Error deleting registry key HKCU\\Software\\antigravity: {ex.Message}");
                 }
 
@@ -195,24 +225,29 @@ namespace AGRollbackTool.Services
                 {
                     Registry.CurrentUser.DeleteSubKeyTree(
                         "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\antigravity", false);
+                    Log.Debug("Deleted registry key: HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\antigravity");
                     result.RegistryKeysDeleted++;
                     result.PurgedItems.Add("Deleted registry key: HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\antigravity");
                 }
                 catch (ArgumentException)
                 {
+                    Log.Debug("Registry key not found: HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\antigravity");
                     result.PurgedItems.Add("Registry key not found: HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\antigravity");
                 }
                 catch (UnauthorizedAccessException ex)
                 {
+                    Log.Error(ex, "Access denied deleting registry key HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\antigravity");
                     result.Errors.Add($"Access denied deleting registry key HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\antigravity: {ex.Message}");
                 }
                 catch (Exception ex)
                 {
+                    Log.Error(ex, "Error deleting registry key HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\antigravity");
                     result.Errors.Add($"Error deleting registry key HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\antigravity: {ex.Message}");
                 }
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Unexpected error deleting registry keys");
                 result.Errors.Add($"Unexpected error deleting registry keys: {ex.Message}");
             }
         }
@@ -229,6 +264,7 @@ namespace AGRollbackTool.Services
                 {
                     // Look for antigravity shortcuts
                     var shortcutFiles = Directory.GetFiles(startMenuPath, "antigravity*.lnk", SearchOption.AllDirectories);
+                    Log.Debug("Found {Count} Start Menu shortcuts to delete", shortcutFiles.Length);
                     foreach (var shortcutFile in shortcutFiles)
                     {
                         try
@@ -239,6 +275,7 @@ namespace AGRollbackTool.Services
                         }
                         catch (Exception ex)
                         {
+                            Log.Error(ex, "Error deleting Start Menu shortcut: {Path}", shortcutFile);
                             result.Errors.Add($"Error deleting Start Menu shortcut {shortcutFile}: {ex.Message}");
                         }
                     }
@@ -255,6 +292,7 @@ namespace AGRollbackTool.Services
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Error removing Start Menu shortcuts");
                 result.Errors.Add($"Error removing Start Menu shortcuts: {ex.Message}");
             }
         }
@@ -268,6 +306,7 @@ namespace AGRollbackTool.Services
                     {
                         // Look for antigravity shortcuts on desktop
                         var shortcutFiles = Directory.GetFiles(desktopPath, "antigravity*.lnk");
+                        Log.Debug("Found {Count} Desktop shortcuts to delete", shortcutFiles.Length);
                         foreach (var shortcutFile in shortcutFiles)
                         {
                             try
@@ -278,6 +317,7 @@ namespace AGRollbackTool.Services
                             }
                             catch (Exception ex)
                             {
+                                Log.Error(ex, "Error deleting Desktop shortcut: {Path}", shortcutFile);
                                 result.Errors.Add($"Error deleting Desktop shortcut {shortcutFile}: {ex.Message}");
                             }
                         }
@@ -294,6 +334,7 @@ namespace AGRollbackTool.Services
                 }
                 catch (Exception ex)
                 {
+                    Log.Error(ex, "Error removing Desktop shortcuts");
                     result.Errors.Add($"Error removing Desktop shortcuts: {ex.Message}");
                 }
             }

@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace AGRollbackTool.Services
 {
@@ -34,16 +35,20 @@ namespace AGRollbackTool.Services
         /// <returns>A restore result detailing what was restored and any errors.</returns>
         public async Task<RestoreResult> RestoreAsync(string backupPath, bool verifyHashes = true)
         {
+            Log.Information("Starting restore operation. Backup path: {BackupPath}, Verify hashes: {VerifyHashes}", backupPath, verifyHashes);
+
             var result = new RestoreResult();
 
             if (string.IsNullOrWhiteSpace(backupPath))
             {
+                Log.Warning("Backup path is null or empty");
                 result.Errors.Add("Backup path cannot be null or empty.");
                 return result;
             }
 
             if (!File.Exists(backupPath) && !Directory.Exists(backupPath))
             {
+                Log.Warning("Backup path does not exist: {BackupPath}", backupPath);
                 result.Errors.Add($"Backup path does not exist: {backupPath}");
                 return result;
             }
@@ -56,16 +61,19 @@ namespace AGRollbackTool.Services
                 // Check if the backupPath is a zip file
                 if (File.Exists(backupPath) && Path.GetExtension(backupPath).Equals(".zip", StringComparison.OrdinalIgnoreCase))
                 {
+                    Log.Debug("Extracting backup zip file to temporary directory");
                     // Extract zip to a temporary directory
                     tempZipExtractPath = Path.Combine(Path.GetTempPath(), $"AGRestore_{Guid.NewGuid()}");
                     ZipFile.ExtractToDirectory(backupPath, tempZipExtractPath);
                     backupDir = tempZipExtractPath;
+                    Log.Debug("Zip extracted to: {TempPath}", tempZipExtractPath);
                 }
 
                 // Check if manifest.json exists in the backup directory
                 string manifestPath = Path.Combine(backupDir, "manifest.json");
                 if (!File.Exists(manifestPath))
                 {
+                    Log.Error("Manifest not found in backup: {ManifestPath}", manifestPath);
                     result.Errors.Add($"Manifest not found in backup: {manifestPath}");
                     return result;
                 }
@@ -76,9 +84,12 @@ namespace AGRollbackTool.Services
                 manifest = await JsonSerializer.DeserializeAsync<BackupManifest>(manifestStream);
                 if (manifest == null)
                 {
+                    Log.Error("Failed to deserialize manifest from: {ManifestPath}", manifestPath);
                     result.Errors.Add("Failed to deserialize manifest.");
                     return result;
                 }
+
+                Log.Information("Manifest loaded. Entries count: {Count}", manifest.Entries.Count);
 
                 // Process each entry in the manifest
                 foreach (var entry in manifest.Entries)
@@ -86,6 +97,7 @@ namespace AGRollbackTool.Services
                     string backupFilePath = Path.Combine(backupDir, entry.RelativePath);
                     if (!File.Exists(backupFilePath))
                     {
+                        Log.Warning("Backup file not found: {RelativePath}", entry.RelativePath);
                         result.Errors.Add($"Backup file not found: {entry.RelativePath}");
                         result.FilesFailed++;
                         continue;
@@ -94,9 +106,12 @@ namespace AGRollbackTool.Services
                     bool hashMatches = true;
                     if (verifyHashes)
                     {
+                        Log.Debug("Verifying hash for: {RelativePath}", entry.RelativePath);
                         string backupFileHash = ComputeSha256Hash(backupFilePath);
                         if (!backupFileHash.Equals(entry.Sha256Hash, StringComparison.OrdinalIgnoreCase))
                         {
+                            Log.Warning("Hash mismatch for file {RelativePath}. Expected: {Expected}, Actual: {Actual}",
+                                entry.RelativePath, entry.Sha256Hash, backupFileHash);
                             result.Errors.Add($"Hash mismatch for file {entry.RelativePath}. Expected: {entry.Sha256Hash}, Actual: {backupFileHash}");
                             result.HashMismatches++;
                             hashMatches = false;
@@ -107,6 +122,7 @@ namespace AGRollbackTool.Services
                     {
                         try
                         {
+                            Log.Debug("Restoring file: {OriginalPath}", entry.OriginalPath);
                             // Ensure the destination directory exists
                             string destDir = Path.GetDirectoryName(entry.OriginalPath);
                             if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
@@ -121,6 +137,7 @@ namespace AGRollbackTool.Services
                         }
                         catch (Exception ex)
                         {
+                            Log.Error(ex, "Failed to restore file: {RelativePath}", entry.RelativePath);
                             result.Errors.Add($"Failed to restore file {entry.RelativePath}: {ex.Message}");
                             result.FilesFailed++;
                         }
@@ -133,9 +150,12 @@ namespace AGRollbackTool.Services
                 }
 
                 result.Success = result.FilesFailed == 0 && result.HashMismatches == 0;
+                Log.Information("Restore operation completed. Success: {Success}, Files restored: {FilesRestored}, Files failed: {FilesFailed}, Hash mismatches: {HashMismatches}",
+                    result.Success, result.FilesRestored, result.FilesFailed, result.HashMismatches);
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Unexpected error during restore operation");
                 result.Errors.Add($"Unexpected error during restore: {ex.Message}");
                 result.Success = false;
             }

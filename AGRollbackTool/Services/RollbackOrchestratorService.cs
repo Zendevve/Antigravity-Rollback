@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using AGRollbackTool.Services;
+using Serilog;
 
 namespace AGRollbackTool.Services
 {
@@ -19,6 +20,7 @@ namespace AGRollbackTool.Services
         private readonly IRestoreService _restoreService;
         private readonly ISettingsInjectorService _settingsInjectorService;
         private readonly IVersionDetectorService _versionDetectorService;
+        private readonly IConfigurationService _configurationService;
 
         private RollbackPhase _currentPhase = RollbackPhase.NotStarted;
         private bool _isInProgress = false;
@@ -39,6 +41,7 @@ namespace AGRollbackTool.Services
         /// <param name="restoreService">The restore service.</param>
         /// <param name="settingsInjectorService">The settings injector service.</param>
         /// <param name="versionDetectorService">The version detector service.</param>
+        /// <param name="configurationService">The configuration service.</param>
         public RollbackOrchestratorService(
             IBackupService backupService,
             IProcessKiller processKiller,
@@ -47,7 +50,8 @@ namespace AGRollbackTool.Services
             IInstallRunnerService installRunnerService,
             IRestoreService restoreService,
             ISettingsInjectorService settingsInjectorService,
-            IVersionDetectorService versionDetectorService)
+            IVersionDetectorService versionDetectorService,
+            IConfigurationService configurationService)
         {
             _backupService = backupService ?? throw new ArgumentNullException(nameof(backupService));
             _processKiller = processKiller ?? throw new ArgumentNullException(nameof(processKiller));
@@ -57,6 +61,7 @@ namespace AGRollbackTool.Services
             _restoreService = restoreService ?? throw new ArgumentNullException(nameof(restoreService));
             _settingsInjectorService = settingsInjectorService ?? throw new ArgumentNullException(nameof(settingsInjectorService));
             _versionDetectorService = versionDetectorService ?? throw new ArgumentNullException(nameof(versionDetectorService));
+            _configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
         }
 
         /// <inheritdoc/>
@@ -95,10 +100,13 @@ namespace AGRollbackTool.Services
         /// <inheritdoc/>
         public async Task StartRollbackAsync(RollbackOptions options)
         {
+            Log.Information("Starting rollback operation with options: {Options}", options);
+
             lock (_lock)
             {
                 if (_isInProgress)
                 {
+                    Log.Error("A rollback session is already in progress");
                     throw new InvalidOperationException("A rollback session is already in progress.");
                 }
 
@@ -112,16 +120,21 @@ namespace AGRollbackTool.Services
 
             try
             {
+                Log.Information("Beginning rollback phases...");
+
                 // Execute each phase in sequence
                 await ExecutePhaseAsync(RollbackPhase.Backup, async () =>
                 {
                     if (_currentOptions.SkipBackup)
                     {
+                        Log.Information("Skipping backup phase");
                         await Task.CompletedTask;
                         return;
                     }
 
+                    Log.Information("Starting backup phase");
                     string backupPath = await _backupService.BackupAsync(_currentOptions.CompressBackup);
+                    Log.Information("Backup completed. Path: {BackupPath}", backupPath);
                     _currentResult.BackupPath = backupPath;
                     _currentResult.CompletedPhases.Add(RollbackPhase.Backup);
                 });
@@ -130,11 +143,14 @@ namespace AGRollbackTool.Services
                 {
                     if (_currentOptions.SkipKillProcesses)
                     {
+                        Log.Information("Skipping kill processes phase");
                         await Task.CompletedTask;
                         return;
                     }
 
+                    Log.Information("Starting kill processes phase");
                     var killedProcesses = _processKiller.KillAllAntigravityProcesses();
+                    Log.Information("Killed {Count} Antigravity processes", killedProcesses.Count);
                     // We could store process info in result if needed
                     _currentResult.CompletedPhases.Add(RollbackPhase.KillProcesses);
                 });
@@ -143,15 +159,19 @@ namespace AGRollbackTool.Services
                 {
                     if (_currentOptions.SkipPurge)
                     {
+                        Log.Information("Skipping purge phase");
                         await Task.CompletedTask;
                         return;
                     }
 
+                    Log.Information("Starting purge phase");
                     var purgeResult = await _purgeService.PurgeAsync();
                     if (!purgeResult.Success)
                     {
+                        Log.Error("Purge phase failed: {Errors}", string.Join("; ", purgeResult.Errors));
                         throw new InvalidOperationException($"Purge failed: {string.Join("; ", purgeResult.Errors)}");
                     }
+                    Log.Information("Purge phase completed. Directories deleted: {Count}", purgeResult.DirectoriesDeleted);
                     _currentResult.CompletedPhases.Add(RollbackPhase.Purge);
                 });
 
@@ -159,11 +179,14 @@ namespace AGRollbackTool.Services
                 {
                     if (_currentOptions.SkipFirewallBlackout)
                     {
+                        Log.Information("Skipping firewall blackout phase");
                         await Task.CompletedTask;
                         return;
                     }
 
+                    Log.Information("Starting firewall blackout phase");
                     _networkBlackoutService.BlockAntigravityNetworkAccess();
+                    Log.Information("Firewall blackout applied successfully");
                     _currentResult.CompletedPhases.Add(RollbackPhase.FirewallBlackout);
                 });
 
@@ -171,17 +194,21 @@ namespace AGRollbackTool.Services
                 {
                     if (_currentOptions.SkipInstall)
                     {
+                        Log.Information("Skipping install phase");
                         await Task.CompletedTask;
                         return;
                     }
 
+                    Log.Information("Starting install phase. Target version: {Version}", _currentOptions.TargetVersion);
                     // Determine installer path - this would typically come from version detection or options
                     string installerPath = await GetInstallerPathAsync(_currentOptions.TargetVersion);
                     var installResult = await _installRunnerService.RunInstallationAsync(installerPath);
                     if (!installResult.Success)
                     {
+                        Log.Error("Install phase failed: {Message}", installResult.Message);
                         throw new InvalidOperationException($"Installation failed: {installResult.Message}", installResult.Exception);
                     }
+                    Log.Information("Install phase completed successfully");
                     _currentResult.InstalledVersion = _currentOptions.TargetVersion ?? await _versionDetectorService.GetCurrentVersionAsync();
                     _currentResult.CompletedPhases.Add(RollbackPhase.Install);
                 });
@@ -190,10 +217,12 @@ namespace AGRollbackTool.Services
                 {
                     if (_currentOptions.SkipScaffoldCreation)
                     {
+                        Log.Information("Skipping scaffold creation phase");
                         await Task.CompletedTask;
                         return;
                     }
 
+                    Log.Information("Scaffold creation phase completed (handled by installation)");
                     // Scaffold creation is typically part of the installation process
                     // For now, we'll just verify that the installation created the necessary structure
                     await Task.CompletedTask;
@@ -204,20 +233,25 @@ namespace AGRollbackTool.Services
                 {
                     if (_currentOptions.SkipRestore)
                     {
+                        Log.Information("Skipping restore phase");
                         await Task.CompletedTask;
                         return;
                     }
 
                     if (string.IsNullOrEmpty(_currentResult.BackupPath))
                     {
+                        Log.Error("Cannot restore: no backup was performed");
                         throw new InvalidOperationException("Cannot restore: no backup was performed.");
                     }
 
+                    Log.Information("Starting restore phase from {BackupPath}", _currentResult.BackupPath);
                     var restoreResult = await _restoreService.RestoreAsync(_currentResult.BackupPath, true);
                     if (!restoreResult.Success)
                     {
+                        Log.Error("Restore phase failed: {Errors}", string.Join("; ", restoreResult.Errors));
                         throw new InvalidOperationException($"Restore failed: {string.Join("; ", restoreResult.Errors)}");
                     }
+                    Log.Information("Restore phase completed. Files restored: {Count}", restoreResult.FilesRestored);
                     _currentResult.CompletedPhases.Add(RollbackPhase.Restore);
                 });
 
@@ -225,10 +259,12 @@ namespace AGRollbackTool.Services
                 {
                     if (_currentOptions.SkipSettingsInjection)
                     {
+                        Log.Information("Skipping settings injection phase");
                         await Task.CompletedTask;
                         return;
                     }
 
+                    Log.Information("Settings injection phase completed");
                     // Settings injection would typically involve applying user preferences
                     // For now, we'll just mark it as completed
                     await Task.CompletedTask;
@@ -239,10 +275,12 @@ namespace AGRollbackTool.Services
                 {
                     if (_currentOptions.SkipVerification)
                     {
+                        Log.Information("Skipping verification phase");
                         await Task.CompletedTask;
                         return;
                     }
 
+                    Log.Information("Verification phase completed");
                     // Verification would involve checking that the installation is working correctly
                     await Task.CompletedTask;
                     _currentResult.CompletedPhases.Add(RollbackPhase.Verification);
@@ -258,10 +296,14 @@ namespace AGRollbackTool.Services
                 _currentResult.Success = true;
                 _currentResult.TotalTimeSeconds = (int)(DateTime.UtcNow - _startTime).TotalSeconds;
 
+                Log.Information("Rollback completed successfully in {Seconds} seconds", _currentResult.TotalTimeSeconds);
+
                 OnCompleted(new RollbackCompletedEventArgs(true, _currentResult));
             }
             catch (OperationCanceledException)
             {
+                Log.Warning("Rollback operation was cancelled");
+
                 lock (_lock)
                 {
                     _currentPhase = RollbackPhase.Cancelled;
@@ -272,6 +314,8 @@ namespace AGRollbackTool.Services
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Rollback operation failed with exception");
+
                 lock (_lock)
                 {
                     _currentPhase = RollbackPhase.Failed;
@@ -389,14 +433,19 @@ namespace AGRollbackTool.Services
             // Update progress
             OnProgressChanged(GetProgress());
 
+            // Get timeout from configuration (use options if not set)
+            int timeoutSeconds = _currentOptions.PhaseTimeoutSeconds > 0
+                ? _currentOptions.PhaseTimeoutSeconds
+                : _configurationService.PhaseTimeoutSeconds;
+
             // Execute the phase action with timeout
-            var timeoutTask = Task.Delay(_currentOptions.PhaseTimeoutSeconds * 1000);
+            var timeoutTask = Task.Delay(timeoutSeconds * 1000);
             var phaseTask = phaseAction();
 
             var completedTask = await Task.WhenAny(timeoutTask, phaseTask);
             if (completedTask == timeoutTask)
             {
-                throw new TimeoutException($"Phase {phase} timed out after {_currentOptions.PhaseTimeoutSeconds} seconds.");
+                throw new TimeoutException($"Phase {phase} timed out after {timeoutSeconds} seconds.");
             }
 
             // Check for cancellation after phase completion

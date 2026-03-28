@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Serilog;
 
 namespace AGRollbackTool.Services
 {
@@ -36,11 +37,14 @@ namespace AGRollbackTool.Services
         /// <exception cref="InvalidOperationException">Thrown when firewall operations fail.</exception>
         public void BlockAntigravityNetworkAccess()
         {
+            Log.Information("Starting network blackout operation");
+
             try
             {
                 // Check if firewall rules already exist and are active - if so, skip gracefully
                 if (AreFirewallRulesActive())
                 {
+                    Log.Information("Firewall rules already active, skipping creation");
                     // Rules already exist and are active - no need to create again
                     return;
                 }
@@ -48,24 +52,32 @@ namespace AGRollbackTool.Services
                 var appBinaryPathInfo = _pathResolver.GetApplicationBinaryPath();
                 if (!appBinaryPathInfo.Exists)
                 {
+                    Log.Error("Application binary path not found: {Path}", appBinaryPathInfo.Path);
                     throw new DirectoryNotFoundException($"Application binary path not found: {appBinaryPathInfo.Path}");
                 }
 
                 string antigravityExe = Path.Combine(appBinaryPathInfo.Path, "antigravity.exe");
                 string updaterExe = Path.Combine(appBinaryPathInfo.Path, "updater.exe");
 
+                Log.Debug("Creating firewall rule for antigravity.exe: {Path}", antigravityExe);
                 // Ensure firewall rules are created and enabled for both executables
                 EnsureFirewallRuleEnabled(AntigravityRuleName, antigravityExe);
+
+                Log.Debug("Creating firewall rule for updater.exe: {Path}", updaterExe);
                 EnsureFirewallRuleEnabled(UpdaterRuleName, updaterExe);
 
                 // Verify both rules are active
                 if (!AreFirewallRulesActive())
                 {
+                    Log.Error("Failed to activate one or more firewall rules");
                     throw new InvalidOperationException("Failed to activate one or more firewall rules.");
                 }
+
+                Log.Information("Network blackout applied successfully. antigravity.exe and updater.exe blocked.");
             }
             catch (Win32Exception ex) when (ex.NativeErrorCode == 5) // Access denied
             {
+                Log.Error(ex, "Access denied when modifying firewall settings. Administrator privileges required.");
                 throw new System.ComponentModel.Win32Exception(ex.NativeErrorCode,
                     "Access denied. Administrator privileges are required to modify firewall settings.", ex);
             }
@@ -78,20 +90,28 @@ namespace AGRollbackTool.Services
         /// <exception cref="InvalidOperationException">Thrown when firewall operations fail.</exception>
         public void UnblockAntigravityNetworkAccess()
         {
+            Log.Information("Starting network unblock operation");
+
             try
             {
                 // Remove firewall rules by name
+                Log.Debug("Removing firewall rule: {RuleName}", AntigravityRuleName);
                 EnsureFirewallRuleRemoved(AntigravityRuleName);
+                Log.Debug("Removing firewall rule: {RuleName}", UpdaterRuleName);
                 EnsureFirewallRuleRemoved(UpdaterRuleName);
 
                 // Verify both rules are removed
                 if (AreFirewallRulesActive())
                 {
+                    Log.Error("Failed to remove one or more firewall rules");
                     throw new InvalidOperationException("Failed to remove one or more firewall rules.");
                 }
+
+                Log.Information("Network unblock completed successfully. Firewall rules removed.");
             }
             catch (Win32Exception ex) when (ex.NativeErrorCode == 5) // Access denied
             {
+                Log.Error(ex, "Access denied when modifying firewall settings. Administrator privileges required.");
                 throw new System.ComponentModel.Win32Exception(ex.NativeErrorCode,
                     "Access denied. Administrator privileges are required to modify firewall settings.", ex);
             }
@@ -103,7 +123,10 @@ namespace AGRollbackTool.Services
         /// <returns>True if both rules exist and are enabled, false otherwise.</returns>
         public bool AreFirewallRulesActive()
         {
-            return IsFirewallRuleActive(AntigravityRuleName) && IsFirewallRuleActive(UpdaterRuleName);
+            bool antigravityActive = IsFirewallRuleActive(AntigravityRuleName);
+            bool updaterActive = IsFirewallRuleActive(UpdaterRuleName);
+            Log.Debug("Firewall rules status - antigravity.exe: {Status}, updater.exe: {Status2}", antigravityActive, updaterActive);
+            return antigravityActive && updaterActive;
         }
 
         /// <summary>
@@ -113,12 +136,15 @@ namespace AGRollbackTool.Services
         /// <returns>Result of the firewall rule removal operation.</returns>
         public FirewallOperationResult RemoveFirewallRule(string ruleName)
         {
+            Log.Information("Removing firewall rule: {RuleName}", ruleName);
+
             var result = new FirewallOperationResult();
 
             try
             {
                 if (string.IsNullOrWhiteSpace(ruleName))
                 {
+                    Log.Warning("Rule name is null, empty, or whitespace");
                     result.Success = false;
                     result.Message = "Rule name cannot be null, empty, or whitespace.";
                     result.AddError("Rule name is required.");
@@ -127,17 +153,20 @@ namespace AGRollbackTool.Services
 
                 if (FirewallRuleExists(ruleName))
                 {
+                    Log.Debug("Firewall rule exists, attempting to delete: {RuleName}", ruleName);
                     var (exitCode, output) = RunNetShCommand(
                         $"advfirewall firewall delete rule name=\"{ruleName}\"");
 
                     if (exitCode == 0)
                     {
+                        Log.Information("Firewall rule removed successfully: {RuleName}", ruleName);
                         result.Success = true;
                         result.Message = $"Firewall rule '{ruleName}' removed successfully.";
                         result.AddAffectedRule(ruleName);
                     }
                     else
                     {
+                        Log.Error("Failed to remove firewall rule {RuleName}. Exit code: {ExitCode}, Output: {Output}", ruleName, exitCode, output);
                         result.Success = false;
                         result.Message = $"Failed to remove firewall rule '{ruleName}'. Exit code: {exitCode}, Output: {output}";
                         result.AddError($"Netsh command failed with exit code {exitCode}: {output}");
@@ -146,6 +175,7 @@ namespace AGRollbackTool.Services
                 else
                 {
                     // Rule doesn't exist, consider this a successful removal
+                    Log.Debug("Firewall rule does not exist, nothing to remove: {RuleName}", ruleName);
                     result.Success = true;
                     result.Message = $"Firewall rule '{ruleName}' does not exist, nothing to remove.";
                     result.AddWarning($"Rule '{ruleName}' was not found.");
@@ -153,12 +183,14 @@ namespace AGRollbackTool.Services
             }
             catch (Win32Exception ex) when (ex.NativeErrorCode == 5) // Access denied
             {
+                Log.Error(ex, "Access denied when removing firewall rule: {RuleName}", ruleName);
                 result.Success = false;
                 result.Message = "Access denied. Administrator privileges are required to modify firewall settings.";
                 result.AddError("Access denied. Administrator privileges are required to modify firewall settings.");
             }
             catch (Exception ex)
             {
+                Log.Error(ex, "Unexpected error occurred while removing firewall rule: {RuleName}", ruleName);
                 result.Success = false;
                 result.Message = $"Unexpected error occurred while removing firewall rule '{ruleName}': {ex.Message}";
                 result.AddError($"Unexpected error: {ex.Message}");

@@ -484,3 +484,4 @@ d:\COMPROG\antigravity rollback\AGRollbackTool\obj\Debug\net8.0-windows\win-x64\
 d:\COMPROG\antigravity rollback\AGRollbackTool\obj\Debug\net8.0-windows\win-x64\SettingsPage.g.cs
 d:\COMPROG\antigravity rollback\AGRollbackTool\obj\Debug\net8.0-windows\win-x64\GeneratedInternalTypeHelper.g.cs
 d:\COMPROG\antigravity rollback\AGRollbackTool\obj\Debug\net8.0-windows\win-x64\DefaultView.g.cs
+d:\COMPROG\antigravity rollback\AGRollbackTool\obj\Debug\net8.0-windows\win-x64\AGRollbackTool.csproj.AssemblyReference.cache
